@@ -1269,13 +1269,18 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
 
   // Static gameplay frame used as the "Share score" background. A plain image file (not the
   // whole gameplay mp4) so there's nothing heavy to load just to grab one picture.
-  const shareBgImg = new Image();
-  shareBgImg.src = 'share-bg-frame.jpg';
-
-
-  // The card's text/border layer - same content every time, drawn on top of whatever
-  // background (the static cover art, or a video frame) is already on the canvas.
-  function drawScoreCardOverlay(cx) {
+  function drawScoreCard() {
+    const c = document.getElementById('end-score-canvas');
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#14130f'; cx.fillRect(0, 0, 800, 800);
+    // album cover as a full-bleed background, dimmed so the text stays legible
+    if (coverImg.complete && coverImg.naturalWidth > 0) {
+      const s = Math.max(800 / coverImg.naturalWidth, 800 / coverImg.naturalHeight);
+      const w = coverImg.naturalWidth * s, h = coverImg.naturalHeight * s;
+      cx.drawImage(coverImg, (800 - w) / 2, (800 - h) / 2, w, h);
+      cx.fillStyle = 'rgba(20,19,15,.82)';
+      cx.fillRect(0, 0, 800, 800);
+    }
     cx.strokeStyle = 'rgba(239,234,224,.25)'; cx.lineWidth = 2; cx.strokeRect(20, 20, 760, 760);
     cx.textAlign = 'center';
     cx.fillStyle = '#b5482e';
@@ -1283,7 +1288,7 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     cx.fillText('MOCKED MONKEY', 400, 120);
     cx.fillStyle = '#6d8f85';
     cx.font = '700 28px monospace';
-    cx.fillText('IMMOVABLE · FROM MARASMA', 400, 165);
+    cx.fillText('IMMOVABLE \u00b7 FROM MARASMA', 400, 165);
     cx.fillStyle = '#efeae0';
     cx.font = '900 160px sans-serif';
     cx.fillText(formatScore(score), 400, 420);
@@ -1299,96 +1304,6 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     cx.font = '600 19px monospace'; cx.fillStyle = '#b3ad9d';
     cx.fillText('mockedmonkey.com', 400, 735);
     cx.fillText(GAME_URL.replace('https://', ''), 400, 762);
-  }
-
-  // Draws whatever image-like source (the cover art, or a video frame) as a full-bleed,
-  // dimmed background - "cover" scaled and centered, same treatment either way so the
-  // video share looks like the same card, just with the gameplay clip moving faintly
-  // behind it instead of a still image.
-  function drawCardBackground(cx, src, srcW, srcH, dimAlpha) {
-    cx.fillStyle = '#14130f'; cx.fillRect(0, 0, 800, 800);
-    if (srcW > 0 && srcH > 0) {
-      const s = Math.max(800 / srcW, 800 / srcH);
-      const w = srcW * s, h = srcH * s;
-      cx.drawImage(src, (800 - w) / 2, (800 - h) / 2, w, h);
-      cx.fillStyle = 'rgba(20,19,15,' + dimAlpha + ')';
-      cx.fillRect(0, 0, 800, 800);
-    }
-  }
-
-  function drawScoreCard() {
-    const c = document.getElementById('end-score-canvas');
-    const cx = c.getContext('2d');
-    const ready = coverImg.complete && coverImg.naturalWidth > 0;
-    drawCardBackground(cx, coverImg, ready ? coverImg.naturalWidth : 0, ready ? coverImg.naturalHeight : 0, 0.82);
-    drawScoreCardOverlay(cx);
-    return c;
-  }
-
-  function roundRectPath(cx, x, y, w, h, r) {
-    cx.beginPath();
-    cx.moveTo(x + r, y);
-    cx.arcTo(x + w, y, x + w, y + h, r);
-    cx.arcTo(x + w, y + h, x, y + h, r);
-    cx.arcTo(x, y + h, x, y, r);
-    cx.arcTo(x, y, x + w, y, r);
-    cx.closePath();
-  }
-
-  // A smaller version of the score panel, meant to sit over a visible background (the
-  // gameplay video frame) rather than cover the whole card - "make the card smaller so
-  // you can see both" was the whole point of this.
-  function drawCompactScoreOverlay(cx) {
-    const px = 60, py = 500, pw = 680, ph = 250;
-    cx.fillStyle = 'rgba(15,14,11,.88)';
-    roundRectPath(cx, px, py, pw, ph, 16); cx.fill();
-    cx.strokeStyle = 'rgba(239,234,224,.25)'; cx.lineWidth = 2;
-    roundRectPath(cx, px, py, pw, ph, 16); cx.stroke();
-
-    cx.textAlign = 'center';
-    const cxc = 400;
-    cx.fillStyle = '#b5482e';
-    cx.font = '900 32px sans-serif';
-    cx.fillText('MOCKED MONKEY', cxc, py + 44);
-    cx.fillStyle = '#efeae0';
-    cx.font = '900 84px sans-serif';
-    cx.fillText(formatScore(score), cxc, py + 122);
-    cx.font = '600 19px monospace'; cx.fillStyle = '#b3ad9d';
-    cx.fillText('POINTS', cxc, py + 150);
-    cx.font = '600 18px monospace'; cx.fillStyle = '#6d8f85';
-    cx.fillText(document.getElementById('end-stats').textContent.toUpperCase(), cxc, py + 186);
-    cx.font = '600 16px monospace'; cx.fillStyle = '#b3ad9d';
-    cx.fillText('IMMOVABLE · ' + GAME_URL.replace('https://', ''), cxc, py + 224);
-  }
-
-  // Confirmed (from an actual screen recording on iPhone Safari) that trying to build a
-  // combined video+card clip in real time via canvas.captureStream()+MediaRecorder does
-  // not work there at all. A still image can't carry audio either way, so "Share score"
-  // builds a single flattened image instead: a static gameplay screenshot (shareBgImg, a
-  // plain small jpg - no video loaded anywhere for this) as the clearly-visible background,
-  // with the score panel - smaller, not covering the whole thing - sitting on top of it.
-  // One lightweight file, both things visible, no recording and no video decoding involved.
-  function waitForImage(img) {
-    return new Promise((resolve, reject) => {
-      if (img.complete && img.naturalWidth > 0) { resolve(img); return; }
-      const timeout = setTimeout(() => reject(new Error('image load timed out')), 4000);
-      img.addEventListener('load', () => { clearTimeout(timeout); resolve(img); }, { once: true });
-      img.addEventListener('error', () => { clearTimeout(timeout); reject(new Error('image load error')); }, { once: true });
-    });
-  }
-
-  async function drawShareCard() {
-    const c = document.getElementById('end-score-canvas');
-    const cx = c.getContext('2d');
-    try {
-      const img = await waitForImage(shareBgImg);
-      drawCardBackground(cx, img, img.naturalWidth, img.naturalHeight, 0.2);
-    } catch (err) {
-      console.error('could not load the share background image, using the cover art instead', err);
-      const ready = coverImg.complete && coverImg.naturalWidth > 0;
-      drawCardBackground(cx, coverImg, ready ? coverImg.naturalWidth : 0, ready ? coverImg.naturalHeight : 0, 0.55);
-    }
-    drawCompactScoreOverlay(cx);
     return c;
   }
 
@@ -1401,16 +1316,14 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   });
 
   document.getElementById('btn-share').addEventListener('click', async () => {
+    const c = drawScoreCard();
     const shareText = 'I scored ' + formatScore(score) + ' points on "Immovable" by Mocked Monkey - can you beat it? ' + GAME_URL;
     const btn = document.getElementById('btn-share');
     const originalLabel = btn.textContent;
-
     // Also copy the link on its own: Instagram's Stories composer auto-suggests a link
     // sticker from whatever URL is sitting in the clipboard, so this makes it one tap
     // to attach a real clickable link even though the shared image itself can't carry one.
     try { await navigator.clipboard.writeText(GAME_URL); } catch (_) {}
-
-    const c = await drawShareCard();
     try {
       if (navigator.canShare && c.toBlob) {
         const blob = await new Promise(res => c.toBlob(res, 'image/png'));
