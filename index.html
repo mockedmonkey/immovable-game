@@ -1191,11 +1191,15 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   }
 
   document.getElementById('btn-start').addEventListener('click', () => {
-    enterFullscreen();
     // Safari is much stricter than Chrome about this: resume() has to be fired
     // synchronously inside the actual click, not after a microtask/promise tick, or it
-    // won't count as "within a user gesture" and playback silently never starts.
+    // won't count as "within a user gesture" and playback silently never starts. It
+    // must also come BEFORE requestFullscreen() below, not after - asking for
+    // fullscreen first can consume the user-gesture context that resume() needs on
+    // some Safari versions, leaving the audio permanently stuck even though the rest
+    // of the game runs fine.
     audioCtx.resume().catch(e => console.error('resume() in click handler threw', e));
+    enterFullscreen();
     buffersReady.then(startGame).catch(err => {
       console.error('could not start the game', err);
       const el = document.getElementById('audio-error');
