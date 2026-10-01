@@ -357,17 +357,34 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     isPlaying = false;
   }
 
+  // Some Safari builds have a context whose resume() call never settles its own Promise
+  // (it just hangs forever, resolve or reject), even though the underlying state does
+  // flip to 'running' shortly after. Waiting on that Promise with `await` would freeze
+  // the whole game forever, so instead we fire resume() without awaiting it and poll
+  // the (synchronous, always-reliable) .state property directly, bounded by a timeout.
+  function waitForRunning(ctx, timeoutMs) {
+    return new Promise(resolve => {
+      if (ctx.state === 'running') { resolve(true); return; }
+      const start = Date.now();
+      const iv = setInterval(() => {
+        if (ctx.state === 'running') { clearInterval(iv); resolve(true); }
+        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+      }, 50);
+    });
+  }
+
   async function ensureAudioCtx() {
     console.log('[dbg] ensureAudioCtx: entry state=', audioCtx.state);
     if (audioCtx.state === 'running') return;
     if (audioCtx.state !== 'closed') {
-      await audioCtx.resume().catch(e => console.error('[dbg] resume() #1 threw', e));
-      console.log('[dbg] ensureAudioCtx: after resume #1 state=', audioCtx.state);
-      if (audioCtx.state === 'running') return;
-      await new Promise(res => setTimeout(res, 80));
-      await audioCtx.resume().catch(e => console.error('[dbg] resume() #2 threw', e));
-      console.log('[dbg] ensureAudioCtx: after resume #2 state=', audioCtx.state);
-      if (audioCtx.state === 'running') return;
+      audioCtx.resume().catch(e => console.error('[dbg] resume() #1 threw', e));
+      let ok = await waitForRunning(audioCtx, 1000);
+      console.log('[dbg] ensureAudioCtx: after resume #1 wait, state=', audioCtx.state, 'ok=', ok);
+      if (ok) return;
+      audioCtx.resume().catch(e => console.error('[dbg] resume() #2 threw', e));
+      ok = await waitForRunning(audioCtx, 1000);
+      console.log('[dbg] ensureAudioCtx: after resume #2 wait, state=', audioCtx.state, 'ok=', ok);
+      if (ok) return;
     }
     // Still not actually running (or was already closed). Some mobile browsers leave a
     // context permanently stuck reporting 'suspended' after a long background period -
@@ -375,8 +392,9 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     // further, just build a fresh context, which is the reliable fix.
     console.log('[dbg] ensureAudioCtx: recreating context, was stuck at', audioCtx.state);
     recreateAudioCtx();
-    await audioCtx.resume().catch(e => console.error('[dbg] resume() after recreate threw', e));
-    console.log('[dbg] ensureAudioCtx: after recreate+resume state=', audioCtx.state);
+    audioCtx.resume().catch(e => console.error('[dbg] resume() after recreate threw', e));
+    const ok = await waitForRunning(audioCtx, 1500);
+    console.log('[dbg] ensureAudioCtx: after recreate+resume wait, state=', audioCtx.state, 'ok=', ok);
   }
 
   function b64ToArrayBuffer(b64) {
