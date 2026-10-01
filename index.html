@@ -1202,12 +1202,6 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     const total = notes.length;
     const acc = total ? Math.round((hits / total) * 100) : 0;
     document.getElementById('end-stats').textContent = acc + '% accuracy · x' + maxCombo + ' max combo';
-    // Start loading the share-video clip now, in the background, so by the time the
-    // player actually taps "Share score" its metadata is already available and
-    // video.play() can run with (close to) no delay after the click - on Safari in
-    // particular, any async gap between the click and an unmuted play() can silently
-    // drop the audio even if the video itself keeps working.
-    try { getShareVideoEl(); } catch (_) {}
   }
 
   document.getElementById('btn-start').addEventListener('click', () => {
