@@ -1088,10 +1088,24 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     overlay.classList.remove('hidden');
     updateHud();
     progressFillEl.style.transform = 'scaleX(0)';
-    await ensureAudioCtx();
-    playFrom(0); // play the full mix (main + crowd + muted suonante), intro included
+    // Start the visible game (screen, countdown, canvas) immediately rather than
+    // waiting on the AudioContext - on some Safari builds getting audio ready can
+    // stall well beyond our own timeout/polling safety net (see ensureAudioCtx), and
+    // previously that stalled EVERYTHING, including the screen transition itself,
+    // making the game look completely frozen. getSongTime() safely reports a static
+    // 0 until playFrom() actually runs, so the countdown just waits at its first
+    // number rather than the whole page looking unresponsive.
     running = true;
     requestAnimationFrame(loop);
+    try {
+      await ensureAudioCtx();
+      if (!running) return; // paused/exited again while audio was still getting ready
+      playFrom(0); // play the full mix (main + crowd + muted suonante), intro included
+    } catch (err) {
+      console.error('could not start audio', err);
+      const el = document.getElementById('audio-error');
+      if (el) el.style.display = 'block';
+    }
   }
 
   function restartGame() {
@@ -1132,11 +1146,16 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
   async function resumeGame() {
     document.getElementById('pause-menu').classList.add('hidden');
     lastFrameTime = 0;
-    await ensureAudioCtx();
-    await showResumeCountdown();
-    resumePlayback();
+    // Same reasoning as startGame(): don't let a slow/stuck AudioContext freeze the
+    // UI. The loop restarts and the 3-2-1-Go plays immediately; audio readiness is
+    // awaited in parallel and only gates the actual resumePlayback() call.
     running = true;
     requestAnimationFrame(loop);
+    const audioReady = ensureAudioCtx().catch(err => console.error('could not resume audio', err));
+    await showResumeCountdown();
+    await audioReady;
+    if (!running) return; // paused/exited again during the countdown
+    resumePlayback();
   }
 
   // Several signals for "the user left the app" - different browsers are inconsistent
