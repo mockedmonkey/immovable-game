@@ -1269,26 +1269,56 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
 
   // Static gameplay frame used as the "Share score" background. A plain image file (not the
   // whole gameplay mp4) so there's nothing heavy to load just to grab one picture.
+  const shareBgImg = new Image();
+  shareBgImg.src = 'share-bg-frame.jpg';
+
+  function roundRectPath(cx, x, y, w, h, r) {
+    cx.beginPath();
+    cx.moveTo(x + r, y);
+    cx.arcTo(x + w, y, x + w, y + h, r);
+    cx.arcTo(x + w, y + h, x, y + h, r);
+    cx.arcTo(x, y + h, x, y, r);
+    cx.arcTo(x, y, x + w, y, r);
+    cx.closePath();
+  }
+
   function drawScoreCard() {
     const c = document.getElementById('end-score-canvas');
     const cx = c.getContext('2d');
     cx.fillStyle = '#14130f'; cx.fillRect(0, 0, 800, 800);
-    // album cover as a full-bleed background, dimmed so the text stays legible
-    if (coverImg.complete && coverImg.naturalWidth > 0) {
-      const s = Math.max(800 / coverImg.naturalWidth, 800 / coverImg.naturalHeight);
-      const w = coverImg.naturalWidth * s, h = coverImg.naturalHeight * s;
-      cx.drawImage(coverImg, (800 - w) / 2, (800 - h) / 2, w, h);
-      cx.fillStyle = 'rgba(20,19,15,.82)';
+    // real gameplay screenshot as a full-bleed background, dimmed so the text stays legible
+    const bg = (shareBgImg.complete && shareBgImg.naturalWidth > 0) ? shareBgImg : coverImg;
+    const bgReady = bg.complete && bg.naturalWidth > 0;
+    if (bgReady) {
+      const s = Math.max(800 / bg.naturalWidth, 800 / bg.naturalHeight);
+      const w = bg.naturalWidth * s, h = bg.naturalHeight * s;
+      cx.drawImage(bg, (800 - w) / 2, (800 - h) / 2, w, h);
+      cx.fillStyle = 'rgba(20,19,15,.55)';
       cx.fillRect(0, 0, 800, 800);
     }
     cx.strokeStyle = 'rgba(239,234,224,.25)'; cx.lineWidth = 2; cx.strokeRect(20, 20, 760, 760);
+
+    // small album-cover badge, top right corner - the second image, alongside the gameplay shot
+    if (coverImg.complete && coverImg.naturalWidth > 0) {
+      const bx = 610, by = 40, bw = 150, bh = 150;
+      cx.save();
+      roundRectPath(cx, bx, by, bw, bh, 10);
+      cx.clip();
+      const cs = Math.max(bw / coverImg.naturalWidth, bh / coverImg.naturalHeight);
+      const cw = coverImg.naturalWidth * cs, ch = coverImg.naturalHeight * cs;
+      cx.drawImage(coverImg, bx + (bw - cw) / 2, by + (bh - ch) / 2, cw, ch);
+      cx.restore();
+      cx.strokeStyle = 'rgba(239,234,224,.55)'; cx.lineWidth = 3;
+      roundRectPath(cx, bx, by, bw, bh, 10); cx.stroke();
+    }
+
     cx.textAlign = 'center';
     cx.fillStyle = '#b5482e';
-    cx.font = '900 60px sans-serif';
-    cx.fillText('MOCKED MONKEY', 400, 120);
+    cx.font = '900 46px sans-serif';
+    cx.fillText('MOCKED MONKEY', 400, 110);
     cx.fillStyle = '#6d8f85';
-    cx.font = '700 28px monospace';
-    cx.fillText('IMMOVABLE \u00b7 FROM MARASMA', 400, 165);
+    cx.font = '700 24px monospace';
+    cx.fillText('IMMOVABLE \u00b7 FROM MARASMA', 400, 152);
     cx.fillStyle = '#efeae0';
     cx.font = '900 160px sans-serif';
     cx.fillText(formatScore(score), 400, 420);
