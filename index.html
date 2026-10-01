@@ -1301,15 +1301,15 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     // just the actual artwork (the bbox found by inspecting the image) instead of stretching
     // the black bars into the badge too.
     if (coverImg.complete && coverImg.naturalWidth > 0) {
-      const bx = 610, by = 40, bw = 150, bh = 150;
+      const bx = 645, by = 36, bw = 100, bh = 100;
       const sx = 28, sy = 8, sw = 455, sh = 455;
       cx.save();
-      roundRectPath(cx, bx, by, bw, bh, 10);
+      roundRectPath(cx, bx, by, bw, bh, 8);
       cx.clip();
       cx.drawImage(coverImg, sx, sy, sw, sh, bx, by, bw, bh);
       cx.restore();
       cx.strokeStyle = 'rgba(239,234,224,.55)'; cx.lineWidth = 3;
-      roundRectPath(cx, bx, by, bw, bh, 10); cx.stroke();
+      roundRectPath(cx, bx, by, bw, bh, 8); cx.stroke();
     }
 
     cx.textAlign = 'center';
