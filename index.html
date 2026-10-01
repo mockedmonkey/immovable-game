@@ -1320,108 +1320,21 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     return c;
   }
 
-  // ---- Share-as-video ----
-  // "Share score" builds the same card as above, but with the supplied gameplay clip
-  // (same ~8s clip, unmodified, for every player) playing visibly behind the text instead
-  // of a still image, and with that clip's own audio - so Instagram's share sheet drops
-  // straight into a Story that still has the score on it. The clip is its own small file
-  // (share-bg.mp4, same-origin so the canvas never gets tainted) loaded only when needed,
-  // rather than embedded in the page, so it never slows down the initial page load. This
-  // depends on MediaRecorder + captureStream(), which isn't universally supported, so
-  // every step is wrapped and falls straight back to the plain score-card image share if
-  // anything about it is unavailable or fails.
-  let shareVideoEl = null;
-  function getShareVideoEl() {
-    if (!shareVideoEl) {
-      shareVideoEl = document.createElement('video');
-      shareVideoEl.src = 'share-bg.mp4';
-      shareVideoEl.muted = false;
-      shareVideoEl.setAttribute('playsinline', '');
-      shareVideoEl.playsInline = true;
-      shareVideoEl.preload = 'auto';
-      // Off-screen but NOT display:none / visibility:hidden - some browsers stop decoding
-      // frames entirely for elements that aren't actually rendered, which would starve
-      // captureStream() of frames.
-      shareVideoEl.style.position = 'fixed';
-      shareVideoEl.style.left = '-9999px';
-      shareVideoEl.style.top = '0';
-      shareVideoEl.style.width = '2px';
-      shareVideoEl.style.height = '2px';
-      shareVideoEl.style.opacity = '0.01';
-      shareVideoEl.style.pointerEvents = 'none';
-      document.body.appendChild(shareVideoEl);
-      shareVideoEl.load();
+  // Confirmed (from an actual screen recording on iPhone Safari) that trying to build a
+  // combined video+card clip in real time via canvas.captureStream()+MediaRecorder does
+  // not work there at all - it was silently falling back to the plain image every time.
+  // So "Share score" below just shares the real supplied clip as-is (audio included,
+  // untouched) - reliable everywhere, no recording involved. It's its own small file
+  // (share-bg.mp4, loaded only on an actual tap) rather than embedded in the page, so it
+  // never adds to the initial page load.
+  let shareVideoFile = null;
+  async function getShareVideoFile() {
+    if (!shareVideoFile) {
+      const res = await fetch('share-bg.mp4');
+      const blob = await res.blob();
+      shareVideoFile = new File([blob], 'immovable-story.mp4', { type: 'video/mp4' });
     }
-    return shareVideoEl;
-  }
-
-  function pickShareVideoMime() {
-    if (typeof MediaRecorder === 'undefined') return null;
-    const candidates = [
-      'video/mp4;codecs=h264,aac',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm;codecs=vp8,opus',
-      'video/webm'
-    ];
-    for (const t of candidates) {
-      try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (_) {}
-    }
-    return null;
-  }
-
-  function canBuildShareVideo() {
-    const testVideo = document.createElement('video');
-    return !!(document.createElement('canvas').captureStream && testVideo.captureStream && pickShareVideoMime());
-  }
-
-  function buildShareVideo() {
-    return new Promise((resolve, reject) => {
-      const mime = pickShareVideoMime();
-      if (!mime) { reject(new Error('media-recorder-unsupported')); return; }
-      const video = getShareVideoEl();
-      let settled = false;
-      let raf = null;
-      let recorder = null;
-      function finish(err, blob) {
-        if (settled) return;
-        settled = true;
-        if (raf) cancelAnimationFrame(raf);
-        video.removeEventListener('ended', onEnded);
-        video.pause();
-        if (err) reject(err); else resolve(blob);
-      }
-      function onEnded() {
-        setTimeout(() => { try { recorder.stop(); } catch (e) { finish(e); } }, 120);
-      }
-      function onLoaded() {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = 800; canvas.height = 800;
-          const cx = canvas.getContext('2d');
-          const canvasStream = canvas.captureStream(24);
-          const audioStream = video.captureStream();
-          const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
-          recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 2000000 });
-          const chunks = [];
-          recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-          recorder.onerror = e => finish(e.error || new Error('recorder error'));
-          recorder.onstop = () => finish(null, new Blob(chunks, { type: mime }));
-          function drawFrame() {
-            drawCardBackground(cx, video, video.videoWidth, video.videoHeight, 0.45);
-            drawScoreCardOverlay(cx);
-            if (!video.ended && !video.paused) raf = requestAnimationFrame(drawFrame);
-          }
-          video.addEventListener('ended', onEnded, { once: true });
-          video.currentTime = 0;
-          recorder.start();
-          video.play().then(() => { raf = requestAnimationFrame(drawFrame); }).catch(err => finish(err));
-        } catch (err) { finish(err); }
-      }
-      video.addEventListener('error', () => finish(new Error('video load error')), { once: true });
-      if (video.readyState >= 1) onLoaded();
-      else video.addEventListener('loadedmetadata', onLoaded, { once: true });
-    });
+    return shareVideoFile;
   }
 
   document.getElementById('btn-download').addEventListener('click', () => {
@@ -1437,57 +1350,24 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     const btn = document.getElementById('btn-share');
     const originalLabel = btn.textContent;
 
-    // Kick the video off FIRST, synchronously, before anything else is awaited - any
-    // delay between the click and video.play() can make Safari (and some other
-    // browsers) silently drop the audio track on an unmuted autoplay, even though the
-    // video itself still "works". canBuildShareVideo() itself does no awaiting.
-    const wantsVideo = canBuildShareVideo();
-    const videoPromise = wantsVideo ? buildShareVideo() : null;
-    if (wantsVideo) { btn.textContent = 'Rendering clip...'; btn.disabled = true; }
-
     // Also copy the link on its own: Instagram's Stories composer auto-suggests a link
     // sticker from whatever URL is sitting in the clipboard, so this makes it one tap
     // to attach a real clickable link even though the shared video/image itself can't
     // carry one.
     try { await navigator.clipboard.writeText(GAME_URL); } catch (_) {}
 
-    if (videoPromise) {
-      let videoFile = null;
-      try {
-        const blob = await videoPromise;
-        const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
-        videoFile = new File([blob], 'immovable-story.' + ext, { type: blob.type });
-      } catch (err) {
-        console.error('could not build the share video, falling back to the score card image', err);
+    try {
+      const videoFile = await getShareVideoFile();
+      if (navigator.canShare && navigator.canShare({ files: [videoFile] })) {
+        await navigator.share({ files: [videoFile], title: 'Immovable - the game', text: shareText });
+        return;
       }
-      btn.textContent = originalLabel;
-      btn.disabled = false;
-
-      if (videoFile) {
-        try {
-          if (navigator.canShare && navigator.canShare({ files: [videoFile] })) {
-            await navigator.share({ files: [videoFile], title: 'Immovable - the game', text: shareText });
-            return;
-          }
-          // No native "share a file" target here - hand it over as a download instead of
-          // silently switching to the static image, since the video was the whole point.
-          const url = URL.createObjectURL(videoFile);
-          const link = document.createElement('a');
-          link.download = videoFile.name;
-          link.href = url;
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(url), 10000);
-          btn.textContent = 'Saved!';
-          setTimeout(() => { btn.textContent = originalLabel; }, 1600);
-          return;
-        } catch (err) {
-          if (err && err.name === 'AbortError') return; // user closed the native share sheet
-          console.error('could not share the video, falling back to the score card image', err);
-        }
-      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // user closed the native share sheet
+      console.error('could not share the video, falling back to the score card image', err);
     }
 
-    // Fallback: the static score-card image share.
+    // Fallback: the static score-card image share, for browsers that can't share a video file.
     const c = drawScoreCard();
     try {
       if (navigator.canShare && c.toBlob) {
