@@ -1293,20 +1293,20 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
       const s = Math.max(800 / bg.naturalWidth, 800 / bg.naturalHeight);
       const w = bg.naturalWidth * s, h = bg.naturalHeight * s;
       cx.drawImage(bg, (800 - w) / 2, (800 - h) / 2, w, h);
-      cx.fillStyle = 'rgba(20,19,15,.55)';
+      cx.fillStyle = 'rgba(20,19,15,.78)';
       cx.fillRect(0, 0, 800, 800);
     }
-    cx.strokeStyle = 'rgba(239,234,224,.25)'; cx.lineWidth = 2; cx.strokeRect(20, 20, 760, 760);
-
-    // small album-cover badge, top right corner - the second image, alongside the gameplay shot
+    // small album-cover badge, top right corner - the second image, alongside the gameplay
+    // shot. The source cover art has black padding baked into its own file, so this crops to
+    // just the actual artwork (the bbox found by inspecting the image) instead of stretching
+    // the black bars into the badge too.
     if (coverImg.complete && coverImg.naturalWidth > 0) {
       const bx = 610, by = 40, bw = 150, bh = 150;
+      const sx = 28, sy = 8, sw = 455, sh = 455;
       cx.save();
       roundRectPath(cx, bx, by, bw, bh, 10);
       cx.clip();
-      const cs = Math.max(bw / coverImg.naturalWidth, bh / coverImg.naturalHeight);
-      const cw = coverImg.naturalWidth * cs, ch = coverImg.naturalHeight * cs;
-      cx.drawImage(coverImg, bx + (bw - cw) / 2, by + (bh - ch) / 2, cw, ch);
+      cx.drawImage(coverImg, sx, sy, sw, sh, bx, by, bw, bh);
       cx.restore();
       cx.strokeStyle = 'rgba(239,234,224,.55)'; cx.lineWidth = 3;
       roundRectPath(cx, bx, by, bw, bh, 10); cx.stroke();
@@ -1318,7 +1318,7 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     cx.fillText('MOCKED MONKEY', 400, 110);
     cx.fillStyle = '#6d8f85';
     cx.font = '700 24px monospace';
-    cx.fillText('IMMOVABLE \u00b7 FROM MARASMA', 400, 152);
+    cx.fillText('IMMOVABLE - THE GAME', 400, 152);
     cx.fillStyle = '#efeae0';
     cx.font = '900 160px sans-serif';
     cx.fillText(formatScore(score), 400, 420);
@@ -1328,9 +1328,8 @@ const SUONANTE_BASE64 = "SUQzAgAAAAAfdlRTUwAAEQBMb2dpYyBQcm8gMTIuMy4xQ09NAABoAGV
     cx.fillText(document.getElementById('end-stats').textContent.toUpperCase(), 400, 560);
     cx.font = '600 22px monospace'; cx.fillStyle = '#8d6db0';
     cx.fillText('CAN YOU BEAT IT?', 400, 612);
-    cx.font = '700 21px monospace'; cx.fillStyle = '#ff3d5a';
-    cx.fillText('FOLLOW THE ARTIST FOR MORE', 400, 665);
-    cx.fillText('BULLSHIT LIKE THIS -> @MOCKED.MONKEY', 400, 692);
+    cx.font = '700 20px monospace'; cx.fillStyle = '#ff3d5a';
+    cx.fillText('FOLLOW @MOCKED.MONKEY FOR MORE BULLSHIT LIKE THIS', 400, 675);
     cx.font = '600 19px monospace'; cx.fillStyle = '#b3ad9d';
     cx.fillText('mockedmonkey.com', 400, 735);
     cx.fillText(GAME_URL.replace('https://', ''), 400, 762);
